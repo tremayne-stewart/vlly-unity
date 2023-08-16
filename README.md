@@ -26,14 +26,14 @@ Supported Unity Version >= 2018.3. For older versions, you need to have `.NET 4.
 This library can be installed using the unity package manager system with git. We support Unity 2018.3 and above. For older versions of Unity, you need to have .NET 4.x Equivalent selected as the scripting runtime version in your editor settings.
 
 * In your unity project root open ./Packages/manifest.json
-<!-- * Add the following line to the dependencies section "com.mixpanel.unity": "https://github.com/mixpanel/mixpanel-unity.git#master", -->
-<!-- * Open Unity and the package should download automatically
-Alternatively you can go to the [releases page](https://github.com/mixpanel/mixpanel-unity/releases) and download the .unitypackage file and have unity install that. -->
+* Add the following line to the dependencies section "com.vlly.unity": "https://github.com/tremayne-stewart/vlly-unity.git#main",
+* Open Unity and the package should download automatically
 ## 2. Initialize Vlly
 To start capturing clips with the Vlly Unity Library, you must first initialize it with your API Key. You can find your API Key on the homepage of the dashboard.
 
 To initialize the library, first open the unity project settings menu for Vlly. (Edit -> Project Settings -> Vlly) Then, enter your api key into the Api Key input field within the inspector.
 Please note if you prefer to initialize Vlly manually, you can select the `Vlly Initialization` in the settings and call `Vlly.Init()` to initialize.
+
 <img width="633" alt="Screenshot 2023-08-09 at 2 03 53 AM" src="https://github.com/tremayne-stewart/vlly-unity/assets/1385885/da432004-4bd6-44c4-a0d3-28edf5e840bd">
 
 
@@ -43,7 +43,7 @@ let's get started by creating your first clip. You can trigger recording a clip 
 using  vlly;
 
 // Then, you can start capturing a clip with
-Vlly.StartRecording("TriggerKey");
+Vlly.StartRecording("first-study");
 ```
 
 ## 4. Watch Clip in Dashboard
