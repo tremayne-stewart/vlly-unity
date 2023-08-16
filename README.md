@@ -34,7 +34,7 @@ To start capturing clips with the Vlly Unity Library, you must first initialize 
 
 To initialize the library, first open the unity project settings menu for Vlly. (Edit -> Project Settings -> Vlly) Then, enter your api key into the Api Key input field within the inspector.
 Please note if you prefer to initialize Vlly manually, you can select the `Vlly Initialization` in the settings and call `Vlly.Init()` to initialize.
-<img width="633" alt="Screenshot 2023-08-09 at 2 03 53 AM" src="https://github.com/tremayne-stewart/vlly-unity/assets/1385885/d005fa66-5189-4782-8f73-a0b9ad386d5b">
+<img width="633" alt="Screenshot 2023-08-09 at 2 03 53 AM" src="https://github.com/tremayne-stewart/vlly-unity/assets/1385885/da432004-4bd6-44c4-a0d3-28edf5e840bd">
 
 
 ## 3. Capture a Clip
@@ -48,7 +48,7 @@ Vlly.StartRecording("TriggerKey");
 
 ## 4. Watch Clip in Dashboard
 [Open up the Vlly Dashboard]() to view the incoming clips.  Within hours you’ll see captured clips to be viewed in the dashboard.
-![web-vlly-screencast](https://github.com/tremayne-stewart/vlly-unity/assets/1385885/9d9d176f-df01-4ebe-9f30-c39c4579ec1c)
+![web-vlly-screencast](https://github.com/tremayne-stewart/vlly-unity/assets/1385885/e7ab4bd0-b317-46b5-9514-44086811b743)
 
 
 # FAQ
