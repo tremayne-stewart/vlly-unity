@@ -8,17 +8,18 @@ using UnityEngine;
 using Unity.Collections;
 using UnityEngine.Networking;
 using UnityEngine.Rendering;
+using UnityEngine.Experimental.Rendering;
+
 
 namespace vlly {
   public class Controller : MonoBehaviour {
-    private const int _maxFrameCount = 24 * 5; // 24 FPS for 5 Seconds
+    private static  int _maxFrameCount;
     private static int _frameCount = 0;
-    private const float _targetFPS = 24f; 
     private static float _timeBetweenFrames;
     private static float _frameTimer = 0f;
-    private static Camera _mainCamera;
     private static bool _isRecording = false;
     private static string _activeTriggerKey;
+    private static string _activeTriggerId;
     private static string _sessionId;
     private static bool _sentCreateClipEvent = false;
 
@@ -38,8 +39,9 @@ namespace vlly {
     internal static void Initialize() {
       VllySettings.Instance.ApplyToConfig();
       GetInstance();
-      _mainCamera = Camera.main;
-      _timeBetweenFrames = 1f / _targetFPS;
+      _timeBetweenFrames = 1f / Config.RecordingFPS;
+      // TODO: Pull from the trigger settings after BETA.
+      _maxFrameCount = (int) (Config.RecordingFPS * 5); // 24 FPS for 5 Seconds
     }
 
     internal static bool IsInitialized() {
@@ -74,9 +76,10 @@ namespace vlly {
         return;
       }
       _activeTriggerKey = triggerKey;
+      _activeTriggerId = GetTriggerId();
       _isRecording = true;
       _frameTimer = 0f;
-      _frameCount =0;
+      _frameCount = 0;
 
     }
 
@@ -88,14 +91,21 @@ namespace vlly {
       VllyPresent();
       CheckForVllyImplemented();
       Vlly.Log("Vlly Component Started");
+      StartCoroutine(WaitAndFlush());
 
     }
+
     private string GetSessionId() {
       if (string.IsNullOrEmpty(_sessionId)) {
         _sessionId = Guid.NewGuid().ToString();
       }
       return _sessionId;
     }
+
+    private static string GetTriggerId() {
+      return Guid.NewGuid().ToString();
+    }
+
     public void VllyPresent() {
       if (!VllyStorage.HasIntegrated) {
         StartCoroutine(SendHttpEvent("setOnboardingState","HasIntegrated"));
@@ -117,6 +127,14 @@ namespace vlly {
         StartCoroutine(SendHttpEvent("setOnboardingState","HasImplemented"));
       }
     }
+
+    private IEnumerator WaitAndFlush() {
+      while (true) {
+        yield return new WaitForSecondsRealtime(Config.FlushInterval);
+        StartCoroutine(SendFrames());
+      }
+    }
+
     public void Update() {
       if (!IsInitialized()) {
         return;
@@ -144,28 +162,11 @@ namespace vlly {
     private IEnumerator GetAndSendFrame() {
       yield return new WaitForEndOfFrame();
       _frameCount ++;
-      var tempRT = RenderTexture.GetTemporary(Screen.width, Screen.height, 24);
+      var tempRT = RenderTexture.GetTemporary(Camera.main.pixelWidth, Camera.main.pixelHeight, 0);
       ScreenCapture.CaptureScreenshotIntoRenderTexture(tempRT);
-      AsyncGPUReadback.Request(tempRT, 0, TextureFormat.RGBA32, ReadbackComplete);
+      AsyncGPUReadback.Request(tempRT, 0, TextureFormat.RGB24, ReadbackComplete);
       RenderTexture.ReleaseTemporary(tempRT);
     }
-
-    private void FlipImage(NativeArray<byte> src, NativeArray<byte> target) {
-      int width = Screen.width;
-      int height = Screen.height;
-      for (int i = 0; i < src.Length; i += 4) {
-        var arrayIndex = i / 4;
-        var x = arrayIndex % width;
-        var y = arrayIndex / width;
-        var flippedY = (height - 1 - y);
-        var flippedIndex = x + flippedY * width;
-        target[i] = src[flippedIndex * 4];
-        target[i + 1] = src[flippedIndex * 4 + 1];
-        target[i + 2] = src[flippedIndex * 4 + 2];
-        target[i + 3] = src[flippedIndex * 4 + 3];
-      }
-    }
-
     private void ReadbackComplete(AsyncGPUReadbackRequest request) {
       if (request.hasError) {
         Vlly.Log("GPU readback error detected.");
@@ -173,42 +174,51 @@ namespace vlly {
       }
 
       var rawData = request.GetData<byte>();
-      var writeTexture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGBA32, false);
-      // RenderTexture coordinates are different between OpenGL and DirectX.
-      // See more: https://docs.unity3d.com/Manual/SL-PlatformDifferences.html
-      GraphicsDeviceType graphicsDevice = SystemInfo.graphicsDeviceType;
-      var flipY = graphicsDevice == GraphicsDeviceType.OpenGLCore || 
-        graphicsDevice == GraphicsDeviceType.OpenGLES2 ||
-        graphicsDevice == GraphicsDeviceType.OpenGLES3 ||
-        graphicsDevice == GraphicsDeviceType.Vulkan ?
-        false : true;
-      
-      if (flipY) {
-        FlipImage(rawData, writeTexture.GetRawTextureData<byte>());
-      } else {
-        writeTexture.LoadRawTextureData(rawData);
+      var pngScreenshot = ImageConversion.EncodeNativeArrayToPNG(rawData, GraphicsFormat.R8G8B8_SRGB, (uint)Camera.main.pixelWidth, (uint)Camera.main.pixelHeight);
+      VllyStorage.EnqueueFrame(_activeTriggerKey, _activeTriggerId, pngScreenshot.ToArray());
+    }
+    private IEnumerator SendFrames() {
+      var batchData = VllyStorage.DequeueBatchFrames(Config.FramesPerBatch);
+      if (batchData.triggerKey == null) {
+        yield break;
       }
+      Vlly.Log("Send Frames");
+      Vlly.Log(batchData.frames.Count.ToString());
 
-      var pngScreenshot = ImageConversion.EncodeToPNG(writeTexture);
       List<IMultipartFormSection> formData = new List<IMultipartFormSection>();
       formData.Add(new MultipartFormDataSection("apiKey", VllySettings.Instance.APIKey));
-      formData.Add(new MultipartFormDataSection("triggerKey", _activeTriggerKey));
       formData.Add(new MultipartFormDataSection("userId", VllyStorage.DistinctId));
       formData.Add(new MultipartFormDataSection("sessionId", GetSessionId()));
-      formData.Add(new MultipartFormFileSection("file", pngScreenshot, "test.png", "image/png"));
-      StartCoroutine(SendFrame(formData));
+      formData.Add(new MultipartFormDataSection("triggerKey", batchData.triggerKey));
+      formData.Add(new MultipartFormDataSection("triggerId", batchData.triggerId));
+      batchData.frames.ForEach(((double timestamp, byte[] data) frameData) => {
+        formData.Add(new MultipartFormFileSection(frameData.timestamp.ToString(), frameData.data, frameData.timestamp.ToString()+".png", "image/png"));
+      });
+      using (UnityWebRequest www = UnityWebRequest.Post(VllySettings.Instance.APIHostAddress+"frameIngestion", formData)) {
+        yield return www.SendWebRequest();
+        #if UNITY_2020_1_OR_NEWER
+        if (www.result != UnityWebRequest.Result.Success)
+        #else
+        if (www.isHttpError || www.isNetworkError)
+        #endif
+        {
+          Vlly.Log(www.error);
+        } else {
+          VllyStorage.DeleteBatchFrames(batchData.triggerKey, batchData.triggerId, Config.FramesPerBatch);
+        }
+      }
+    } 
 
-    }
     private IEnumerator SendFrame(List<IMultipartFormSection> formData) {
       using (UnityWebRequest www = UnityWebRequest.Post(VllySettings.Instance.APIHostAddress+"frameIngestion", formData)) {
         yield return www.SendWebRequest();
         if (www.result != UnityWebRequest.Result.Success) {
-            Debug.Log(www.error);
+            Vlly.Log(www.error);
         } 
       }
     }
     private IEnumerator sendCreateClipEvent() {
-      string jsonString = "{\"triggerKey\": \""+_activeTriggerKey+"\", \"userId\": \""+VllyStorage.DistinctId+"\", \"sessionId\": \""+GetSessionId()+"\"}";
+      string jsonString = "{\"triggerKey\": \""+_activeTriggerKey+"\", \"userId\": \""+VllyStorage.DistinctId+"\", \"sessionId\": \""+GetSessionId()+"\", \"triggerId\": \""+_activeTriggerId+"\"}";
       return DoSendHttpEvent("createClip", jsonString);
     }
 
