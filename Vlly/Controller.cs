@@ -131,7 +131,9 @@ namespace vlly {
     private IEnumerator WaitAndFlush() {
       while (true) {
         yield return new WaitForSecondsRealtime(Config.FlushInterval);
-        StartCoroutine(SendFrames());
+        if (!_isRecording) {
+          StartCoroutine(SendFrames());
+        }
       }
     }
 
