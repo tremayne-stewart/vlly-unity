@@ -231,7 +231,8 @@ namespace vlly {
     private IEnumerator DoSendHttpEvent(string eventName, string value) {
       string body = "{\"event\": \""+eventName+"\", \"value\": "+value+","
         + " \"version\": \""+Vlly.VllyUnityVersion+"\", \"apiKey\":\""+VllySettings.Instance.APIKey+"\"}";
-      using (UnityWebRequest www = UnityWebRequest.Post(VllySettings.Instance.APIHostAddress+"eventIngestion", body, "application/json")) {
+      using (UnityWebRequest www = UnityWebRequest.PostWwwForm(VllySettings.Instance.APIHostAddress+"eventIngestion", body)) {
+        www.SetRequestHeader("Content-Type", "application/json");
         yield return www.SendWebRequest();
         if (www.result != UnityWebRequest.Result.Success) {
             Vlly.Log(www.error);
