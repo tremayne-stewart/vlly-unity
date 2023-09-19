@@ -6,8 +6,8 @@ namespace vlly {
     internal static bool ShowDebug = false;
     internal static bool ManualInitialization = false;
 
-    internal static float FlushInterval = 3f;
-    internal static int FramesPerBatch = 3;
-    internal static float RecordingFPS = 24f;
+    internal static int FlushInterval = 3;
+    internal static int FramesPerBatch = 20;
+    internal static int RecordingFPS = 24;
   }
 } 
