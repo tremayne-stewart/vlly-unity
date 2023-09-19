@@ -1,27 +1,20 @@
 using System;
-using System.Text;
-using System.IO;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEditor;
 using UnityEngine;
-using Unity.Collections;
 using UnityEngine.Networking;
-using UnityEngine.Rendering;
-using UnityEngine.Experimental.Rendering;
+
 
 
 namespace vlly {
   public class Controller : MonoBehaviour {
     private static  int _maxFrameCount;
-    private static int _frameCount = 0;
-    private static float _timeBetweenFrames;
-    private static float _frameTimer = 0f;
     private static bool _isRecording = false;
     private static string _activeTriggerKey;
     private static string _activeTriggerId;
     private static string _sessionId;
     private static bool _sentCreateClipEvent = false;
+    private static VllyCamera _vllyCamera;
 
     #region Singleton
 
@@ -39,8 +32,6 @@ namespace vlly {
     internal static void Initialize() {
       VllySettings.Instance.ApplyToConfig();
       GetInstance();
-      _timeBetweenFrames = 1f / Config.RecordingFPS;
-      // TODO: Pull from the trigger settings after BETA.
       _maxFrameCount = (int) (Config.RecordingFPS * 5); // 24 FPS for 5 Seconds
     }
 
@@ -69,18 +60,19 @@ namespace vlly {
     internal static void DoStopRecording() {
       _isRecording = false;
       _sentCreateClipEvent = false;
+      _vllyCamera.StopRecording();
     }
     internal static void DoStartRecording(string triggerKey) {
       VllyStorage.HasRecorded = true;
       if (_isRecording) {
         return;
       }
+
       _activeTriggerKey = triggerKey;
       _activeTriggerId = GetTriggerId();
       _isRecording = true;
-      _frameTimer = 0f;
-      _frameCount = 0;
 
+      _vllyCamera.StartRecording(_activeTriggerKey, _activeTriggerId);
     }
 
     #endregion
@@ -91,8 +83,9 @@ namespace vlly {
       VllyPresent();
       CheckForVllyImplemented();
       Vlly.Log("Vlly Component Started");
-      StartCoroutine(WaitAndFlush());
+      _vllyCamera = VllyCamera.GetInstance();
 
+      StartCoroutine(WaitAndFlush());
     }
 
     private string GetSessionId() {
@@ -144,7 +137,7 @@ namespace vlly {
       if (!_isRecording) {
         return;
       }
-      if (_frameCount > _maxFrameCount) {
+      if (_vllyCamera.RecordedFrameCount >= _maxFrameCount) {
         DoStopRecording();
         return;
       }
@@ -152,40 +145,15 @@ namespace vlly {
         StartCoroutine(sendCreateClipEvent());
         _sentCreateClipEvent = true;
       }
-
-      _frameTimer += Time.deltaTime;
-      if (_frameTimer >= _timeBetweenFrames) {
-        StartCoroutine(GetAndSendFrame());
-        _frameTimer -= _timeBetweenFrames;
-      }
     }
+    #endregion
 
-
-    private IEnumerator GetAndSendFrame() {
-      yield return new WaitForEndOfFrame();
-      _frameCount ++;
-      var tempRT = RenderTexture.GetTemporary(Camera.main.pixelWidth, Camera.main.pixelHeight, 0);
-      ScreenCapture.CaptureScreenshotIntoRenderTexture(tempRT);
-      AsyncGPUReadback.Request(tempRT, 0, TextureFormat.RGB24, ReadbackComplete);
-      RenderTexture.ReleaseTemporary(tempRT);
-    }
-    private void ReadbackComplete(AsyncGPUReadbackRequest request) {
-      if (request.hasError) {
-        Vlly.Log("GPU readback error detected.");
-        return;
-      }
-
-      var rawData = request.GetData<byte>();
-      var pngScreenshot = ImageConversion.EncodeNativeArrayToPNG(rawData, GraphicsFormat.R8G8B8_SRGB, (uint)Camera.main.pixelWidth, (uint)Camera.main.pixelHeight);
-      VllyStorage.EnqueueFrame(_activeTriggerKey, _activeTriggerId, pngScreenshot.ToArray());
-    }
+    #region Requests
     private IEnumerator SendFrames() {
       var batchData = VllyStorage.DequeueBatchFrames(Config.FramesPerBatch);
       if (batchData.triggerKey == null) {
         yield break;
       }
-      Vlly.Log("Send Frames");
-      Vlly.Log(batchData.frames.Count.ToString());
 
       List<IMultipartFormSection> formData = new List<IMultipartFormSection>();
       formData.Add(new MultipartFormDataSection("apiKey", VllySettings.Instance.APIKey));
@@ -211,14 +179,6 @@ namespace vlly {
       }
     } 
 
-    private IEnumerator SendFrame(List<IMultipartFormSection> formData) {
-      using (UnityWebRequest www = UnityWebRequest.Post(VllySettings.Instance.APIHostAddress+"frameIngestion", formData)) {
-        yield return www.SendWebRequest();
-        if (www.result != UnityWebRequest.Result.Success) {
-            Vlly.Log(www.error);
-        } 
-      }
-    }
     private IEnumerator sendCreateClipEvent() {
       string jsonString = "{\"triggerKey\": \""+_activeTriggerKey+"\", \"userId\": \""+VllyStorage.DistinctId+"\", \"sessionId\": \""+GetSessionId()+"\", \"triggerId\": \""+_activeTriggerId+"\"}";
       return DoSendHttpEvent("createClip", jsonString);
