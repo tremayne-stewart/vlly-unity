@@ -1,19 +1,22 @@
+using System.IO;
 using System.Threading.Tasks;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEngine.Experimental.Rendering;
 using System.Diagnostics;
+using UnityEngine.Rendering;
 
 namespace vlly {
   public class VllyCamera : MonoBehaviour {
-    private static VllyCamera _instance;
-    private static Camera _mainCamera;
     private System.Diagnostics.Stopwatch _frameTimer;
     private bool _isCapturing = false;
     private int _frameCount = 0;
     private int _lastFrameId = 0;
     private string _triggerKey;
     private string _triggerId;
+    private Camera  _camera;
+    private RenderTexture _renderTexture;
     public int RecordedFrameCount {
       get {
         return _frameCount;
@@ -21,21 +24,15 @@ namespace vlly {
     }
     public int RealTimeFrameId {
       get {
+        if (_frameTimer == null){
+          return 0;
+        }
         return (int) (_frameTimer.ElapsedMilliseconds / 1000.0m * Config.RecordingFPS);
       }
     }
 
     #region Singleton
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void InitializeBeforeSceneLoad() {
-      // Local cache to avoid slight CPU overhead of Unity cache lookup.
-      _mainCamera = Camera.main;
-      _instance = _mainCamera.gameObject.AddComponent<VllyCamera>();
-    }
 
-    public static VllyCamera GetInstance() {
-      return _instance;
-    }
     #endregion
 
     #region API
@@ -49,7 +46,6 @@ namespace vlly {
       _lastFrameId = -1;
       _frameTimer = new Stopwatch();
       _frameTimer.Start();
-
       _isCapturing = true;
       return true;
     }
@@ -63,6 +59,24 @@ namespace vlly {
     }
     #endregion
 
+    public void Start() {
+      RenderPipelineManager.endFrameRendering += OnEndFrameRendering;
+    }
+    void OnDestroy() {
+        RenderPipelineManager.endFrameRendering -= OnEndFrameRendering;
+    }
+    public void Update() {
+      if (!_camera) {
+        _camera = this.GetComponent<Camera>();
+        _renderTexture = new RenderTexture(
+          (int)_camera.pixelWidth, 
+          (int)_camera.pixelHeight, 
+          24, RenderTextureFormat.ARGB32);
+        _renderTexture.Create();
+        _camera.targetTexture = _renderTexture;
+      }
+    }
+
     #region Capture
     private void ReadbackComplete(AsyncGPUReadbackRequest request) {
       if (request.hasError) {
@@ -72,10 +86,9 @@ namespace vlly {
 
       var managedData = request.GetData<byte>().ToArray();
       Task.Run(() => {
-        var pngScreenshot = ImageConversion.EncodeArrayToPNG(managedData, GraphicsFormat.R8G8B8_SRGB, (uint)_mainCamera.pixelWidth, (uint)_mainCamera.pixelHeight);
+        var pngScreenshot = ImageConversion.EncodeArrayToPNG(managedData, GraphicsFormat.R8G8B8_SRGB, (uint)_camera.pixelWidth, (uint)_camera.pixelHeight);
         VllyStorage.EnqueueFrame(_triggerKey, _triggerId, pngScreenshot);
       });
-
     }
 
     private bool ShouldCapture() {
@@ -88,11 +101,8 @@ namespace vlly {
       if (!doCapture) {
         return false;
       }
-
-
       _frameCount++;
 
-      Vlly.Log("Should CAp - trigger read from source");
       AsyncGPUReadback.Request(source, 0, TextureFormat.RGB24, ReadbackComplete);
       Graphics.Blit(source, dest);
       return true;
@@ -104,6 +114,15 @@ namespace vlly {
         Graphics.Blit(source, dest);
       }
 
+    }
+    private void OnEndFrameRendering(ScriptableRenderContext context, Camera[] cameras) {
+      bool doCapture = ShouldCapture();
+      _lastFrameId = RealTimeFrameId;
+      if (!doCapture) {
+        return;
+      }
+      _frameCount++;
+      AsyncGPUReadback.Request(_renderTexture, 0, TextureFormat.RGB24, ReadbackComplete);
     }
     #endregion
   }

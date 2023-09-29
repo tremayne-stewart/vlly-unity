@@ -7,7 +7,7 @@ namespace vlly {
     internal static bool ManualInitialization = false;
 
     internal static int FlushInterval = 3;
-    internal static int FramesPerBatch = 20;
+    internal static int FramesPerBatch = 12;
     internal static int RecordingFPS = 24;
   }
 } 

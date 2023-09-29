@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
 
-
-
 namespace vlly {
   public class Controller : MonoBehaviour {
     private static  int _maxFrameCount;
@@ -29,10 +27,15 @@ namespace vlly {
       Initialize();
     }
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void InitializeAfterSceneLoad() {
+      InitializeCamera();
+    }
+
     internal static void Initialize() {
       VllySettings.Instance.ApplyToConfig();
       GetInstance();
-      _maxFrameCount = (int) (Config.RecordingFPS * 5); // 24 FPS for 5 Seconds
+      _maxFrameCount = (int) (Config.RecordingFPS * 2); // 24 FPS for 5 Seconds
     }
 
     internal static bool IsInitialized() {
@@ -43,6 +46,9 @@ namespace vlly {
       if (_instance != null) {
         Destroy(_instance);
       }
+      if (_vllyCamera != null) {
+        Destroy(_vllyCamera);
+      }
     }
 
     internal static Controller GetInstance () {
@@ -52,6 +58,16 @@ namespace vlly {
         DontDestroyOnLoad(g);
       }
       return _instance;
+    }
+
+    internal static VllyCamera InitializeCamera() {
+        GameObject cameraObject = GameObject.Find("/VllyCamera");
+        if (cameraObject == null) {
+          Vlly.LogError("No VllyCamera found. Please add a Camera with the name 'VllyCamera' to the top level of the Hierarchy.");
+          return null;
+        }
+        _vllyCamera = cameraObject.AddComponent<VllyCamera>();
+        return _vllyCamera;
     }
 
     #endregion
@@ -82,9 +98,6 @@ namespace vlly {
     public void Start() {
       VllyPresent();
       CheckForVllyImplemented();
-      Vlly.Log("Vlly Component Started");
-      _vllyCamera = VllyCamera.GetInstance();
-
       StartCoroutine(WaitAndFlush());
     }
 
@@ -191,7 +204,7 @@ namespace vlly {
     private IEnumerator DoSendHttpEvent(string eventName, string value) {
       string body = "{\"event\": \""+eventName+"\", \"value\": "+value+","
         + " \"version\": \""+Vlly.VllyUnityVersion+"\", \"apiKey\":\""+VllySettings.Instance.APIKey+"\"}";
-      using (UnityWebRequest www = UnityWebRequest.PostWwwForm(VllySettings.Instance.APIHostAddress+"eventIngestion", body)) {
+      using (UnityWebRequest www = UnityWebRequest.Put(VllySettings.Instance.APIHostAddress+"eventIngestion", body)) {
         www.SetRequestHeader("Content-Type", "application/json");
         yield return www.SendWebRequest();
         if (www.result != UnityWebRequest.Result.Success) {
