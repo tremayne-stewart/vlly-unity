@@ -35,7 +35,7 @@ namespace vlly {
     internal static void Initialize() {
       VllySettings.Instance.ApplyToConfig();
       GetInstance();
-      _maxFrameCount = (int) (Config.RecordingFPS * 2); // 24 FPS for 5 Seconds
+      _maxFrameCount = (int) (Config.RecordingFPS * 5); // 24 FPS for 5 Seconds
     }
 
     internal static bool IsInitialized() {
@@ -137,9 +137,7 @@ namespace vlly {
     private IEnumerator WaitAndFlush() {
       while (true) {
         yield return new WaitForSecondsRealtime(Config.FlushInterval);
-        if (!_isRecording) {
-          StartCoroutine(SendFrames());
-        }
+        StartCoroutine(SendFrames());
       }
     }
 
