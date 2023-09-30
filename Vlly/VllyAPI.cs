@@ -14,7 +14,7 @@ namespace vlly {
   ///   Vlly.StartRecording("myTriggerKey");
   /// </code>
   public static partial class Vlly {
-    public static string VllyUnityVersion = "0.1.0";
+    public static string VllyUnityVersion = "0.1.1";
     public static void Init() {
       Controller.Initialize();
     }

@@ -1,7 +1,7 @@
 {
   "name": "com.vlly.unity",
   "displayName":  "Vlly",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Official Vlly library for Unity.",
   "repository": {
     "type": "git",

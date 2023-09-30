@@ -94,6 +94,11 @@ namespace vlly {
       }
       VllyStorage.HasRecorded = true;
       Vlly.Log("Starting Recording");
+      #if UNITY_EDITOR
+      {
+        Vlly.LogWarning("Running in Unity Editor on the main thread so expect some jitters. On device there are no jitters because of native multithreading.");
+      }
+      #endif
       if (_isRecording) {
         Vlly.Log("\tRecording already in progress. Noop.");
         return;

@@ -14,5 +14,10 @@ namespace vlly
                 Debug.LogError("[Vlly] " + s);
             }
         }
+        public static void LogWarning(string s) {
+            if (Config.ShowDebug) {
+                Debug.LogWarning("[Vlly] " + s);
+            }
+        }
     }
 }

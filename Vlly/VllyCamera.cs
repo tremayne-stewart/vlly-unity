@@ -90,6 +90,13 @@ namespace vlly {
         var pngScreenshot = ImageConversion.EncodeArrayToPNG(managedData, GraphicsFormat.R8G8B8_SRGB, (uint)_camera.pixelWidth, (uint)_camera.pixelHeight);
         VllyStorage.EnqueueFrame(_triggerKey, _triggerId, pngScreenshot);
       });
+      #if UNITY_EDITOR
+      {
+        var pngScreenshot = ImageConversion.EncodeArrayToPNG(managedData, GraphicsFormat.R8G8B8_SRGB, (uint)_camera.pixelWidth, (uint)_camera.pixelHeight);
+        VllyStorage.EnqueueFrame(_triggerKey, _triggerId, pngScreenshot);
+      }
+      #endif
+
     }
 
     private bool ShouldCapture() {
