@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace vlly {
 
   /// <summary>
@@ -58,9 +60,18 @@ namespace vlly {
       get => VllyStorage.DistinctId;
     }
 
-    public static void stopRecording(string triggerKey = null) {
-
+    public static void stopRecording() {
+      Controller.DoStopRecording();
     }
+
+    /// <summary>
+    ///   Starts a Vlly recording. 
+    ///   
+    ///   Default behavior is to not disrupt an in progress recording if called multiple times. 
+    ///   Set stopExisting to override this behavior and stop the previous recording.
+    /// </summary>
+    /// <param name="triggerKey"></param>
+    /// <param name="stopExisting"></param>
     public static void StartRecording(string triggerKey, bool stopExisting=false) {
       if (stopExisting) {
         stopRecording();
@@ -68,9 +79,12 @@ namespace vlly {
       Controller.DoStartRecording(triggerKey);
     }
 
-
-    
-
-
+    public static void SetCamera(string objectName) {
+        GameObject cameraObject = GameObject.Find(objectName);
+        Vlly.SetCamera(cameraObject);
+    }
+    public static void SetCamera(GameObject cameraObject) {
+      Controller.SetCamera(cameraObject);
+    }
   }
 }

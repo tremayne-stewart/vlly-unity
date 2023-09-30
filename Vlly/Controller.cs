@@ -60,27 +60,42 @@ namespace vlly {
       return _instance;
     }
 
-    internal static VllyCamera InitializeCamera() {
-        GameObject cameraObject = GameObject.Find("/VllyCamera");
+    internal static void InitializeCamera() {
+        GameObject cameraObject = GameObject.Find("VllyCamera");
         if (cameraObject == null) {
-          Vlly.LogError("No VllyCamera found. Please add a Camera with the name 'VllyCamera' to the top level of the Hierarchy.");
-          return null;
+          Vlly.Log("No camera with the name 'VllyCamera' found in the Hierarchy. To start recording use Vlly.SetCamera(string|cameraGameObject) before calling Vlly.StartRecording()");
+          return;
         }
-        _vllyCamera = cameraObject.AddComponent<VllyCamera>();
-        return _vllyCamera;
+        Controller.SetCamera(cameraObject);
+    }
+
+    internal static void SetCamera(GameObject cameraObject) {
+      if (cameraObject == null || cameraObject.GetComponent<Camera>() == null) {
+        Vlly.LogError("Camera supplied to Vlly either is null or doesn't have a camera component.");
+        return;
+      } 
+      _vllyCamera = cameraObject.AddComponent<VllyCamera>();
+       
     }
 
     #endregion
 
     #region API
     internal static void DoStopRecording() {
+      Vlly.Log("Stopping Recording");
       _isRecording = false;
       _sentCreateClipEvent = false;
       _vllyCamera.StopRecording();
     }
     internal static void DoStartRecording(string triggerKey) {
+      if (_vllyCamera == null) {
+        Vlly.Log("\tVlly's camera has not been set. Please use Vlly.SetCamera(string|cameraGameObject) before calling Vlly.StartRecording()");
+        return;
+      }
       VllyStorage.HasRecorded = true;
+      Vlly.Log("Starting Recording");
       if (_isRecording) {
+        Vlly.Log("\tRecording already in progress. Noop.");
         return;
       }
 
@@ -98,6 +113,7 @@ namespace vlly {
     public void Start() {
       VllyPresent();
       CheckForVllyImplemented();
+      Vlly.Log("Vlly Component Started");
       StartCoroutine(WaitAndFlush());
     }
 
@@ -165,7 +181,7 @@ namespace vlly {
       if (batchData.triggerKey == null) {
         yield break;
       }
-
+      Vlly.Log("Sending frames: "+batchData.frames.Count);
       List<IMultipartFormSection> formData = new List<IMultipartFormSection>();
       formData.Add(new MultipartFormDataSection("apiKey", VllySettings.Instance.APIKey));
       formData.Add(new MultipartFormDataSection("userId", VllyStorage.DistinctId));

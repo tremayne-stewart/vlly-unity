@@ -8,6 +8,7 @@ using System.Diagnostics;
 using UnityEngine.Rendering;
 
 namespace vlly {
+  [RequireComponent(typeof(Camera))]
   public class VllyCamera : MonoBehaviour {
     private System.Diagnostics.Stopwatch _frameTimer;
     private bool _isCapturing = false;
